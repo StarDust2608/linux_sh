@@ -3,3 +3,4 @@
 ```
 wget https://raw.githubusercontent.com/StarDust2608/linux_sh/main/atuo_hysteria_port.sh && chmod +x atuo_hysteria_port.sh && bash atuo_hysteria_port.sh
 ```
+使用时请确定系统为Debian系，同时拥有root权限
