@@ -29,6 +29,11 @@ if ! command -v iptables >/dev/null 2>&1; then
     install_pkg iptables
 fi
 
+if ! command -v ip6tables >/dev/null 2>&1; then
+    echo "未检测到 ip6tables，正在安装 iptables..."
+    install_pkg iptables
+fi
+
 # ===== 自动获取物理网卡 =====
 get_iface() {
     mapfile -t ifaces < <(ip -o link show | awk -F': ' '{print $2}' | grep -vE '^(lo|docker|veth|br-|tun|tap)')
@@ -76,17 +81,29 @@ while true; do
     fi
 done
 
+# ===== IPv6 转发选择 =====
+read -p "是否开启 IPv6 转发并添加 IPv6 规则? (y/n): " enable_ipv6
+
 # ===== 清理旧规则 =====
 iptables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
+ip6tables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
 
 # ===== 添加新规则 =====
 iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+
+if [[ "$enable_ipv6" == "y" ]]; then
+    # 开启 IPv6 转发
+    sed -i '/^net.ipv6.conf.all.forwarding/d' /etc/sysctl.conf
+    echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
+    sysctl -p >/dev/null
+    # 添加 IPv6 NAT 规则
+    ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+fi
 
 # ===== 保存执行脚本 =====
 mkdir -p /root/start
 cat > /root/start/hysteria_port.sh << EOF
 #!/bin/bash
-# 等待网络接口可用
 for i in {1..10}; do
     ip link show "$iface" >/dev/null 2>&1 && break
     echo "等待网络接口 $iface 启动..."
@@ -94,6 +111,12 @@ for i in {1..10}; do
 done
 iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 EOF
+
+if [[ "$enable_ipv6" == "y" ]]; then
+cat >> /root/start/hysteria_port.sh << EOF
+ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+EOF
+fi
 chmod +x /root/start/hysteria_port.sh
 
 # ===== 创建 systemd 服务 =====
@@ -118,4 +141,17 @@ systemctl daemon-reload
 systemctl enable hysteria_port
 systemctl restart hysteria_port
 
+# ===== 保存 iptables 规则（持久化） =====
+if command -v apt >/dev/null 2>&1; then
+    install_pkg iptables-persistent
+    netfilter-persistent save
+elif command -v yum >/dev/null 2>&1; then
+    install_pkg iptables-services
+    service iptables save
+    service ip6tables save 2>/dev/null
+fi
+
 echo "脚本运行成功，端口 ${start_port}-${end_port} 已重定向到 ${local_port} (网卡: $iface)"
+if [[ "$enable_ipv6" == "y" ]]; then
+    echo "IPv6 转发已开启，并添加了 IPv6 重定向规则"
+fi
