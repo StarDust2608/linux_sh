@@ -94,17 +94,17 @@ while true; do
 done
 
 # ===== 清理旧规则 =====
-iptables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
-ip6tables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
+sudo iptables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
+sudo ip6tables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
 
 # ===== 添加新规则 =====
-iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+sudo iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 
 if [[ "$enable_ipv6" == "y" ]]; then
     sed -i '/^net.ipv6.conf.all.forwarding/d' /etc/sysctl.conf
     echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
     sysctl -p >/dev/null
-    ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+    sudo ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 fi
 
 # ===== 保存执行脚本 =====
@@ -116,12 +116,12 @@ for i in {1..10}; do
     echo "等待网络接口 $iface 启动..."
     sleep 3
 done
-iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+sudo iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 EOF
 
 if [[ "$enable_ipv6" == "y" ]]; then
 cat >> /root/start/hysteria_port.sh << EOF
-ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
+sudo ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 EOF
 fi
 chmod +x /root/start/hysteria_port.sh
