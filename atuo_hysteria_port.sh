@@ -26,8 +26,8 @@ fi
 
 # ===== 安装依赖 =====
 install_pkg() {
-    apt update -y
-    apt install -y "$@"
+    sudo apt update -y
+    sudo apt install -y "$@"
 }
 
 for cmd in systemctl iptables ip6tables; do
@@ -55,13 +55,13 @@ get_iface() {
 }
 get_iface
 
-# ===== 循环输入端口 =====
+# ===== 输入端口 =====
 while true; do
     read -p "起始端口: " start_port
     if [[ "$start_port" =~ ^[0-9]+$ ]] && (( start_port >= 1 && start_port <= 65535 )); then
         break
     else
-        echo "错误：请输入 1-65535 范围内的数字"
+        echo "错误！请输入 1-65535 范围内的数字"
     fi
 done
 
@@ -70,7 +70,7 @@ while true; do
     if [[ "$end_port" =~ ^[0-9]+$ ]] && (( end_port >= start_port && end_port <= 65535 )); then
         break
     else
-        echo "错误：请输入大于等于起始端口且 ≤65535 的数字"
+        echo "错误！请输入大于等于起始端口且 ≤65535 的数字"
     fi
 done
 
@@ -79,14 +79,14 @@ while true; do
     if [[ "$local_port" =~ ^[0-9]+$ ]] && (( local_port >= 1 && local_port <= 65535 )); then
         break
     else
-        echo "错误：请输入 1-65535 范围内的数字"
+        echo "错误！请输入 1-65535 范围内的数字"
     fi
 done
 
 # ===== IPv6 转发选择 =====
 while true; do
     read -p "是否开启 IPv6 转发并添加 IPv6 规则? (y/n): " enable_ipv6
-    if [[ "$enable_ipv6" == "y" || "$enable_ipv6" == "n" ]]; then
+    if [[ "$enable_ipv6" == "y","Y" || "$enable_ipv6" == "n","N" ]]; then
         break
     else
         echo "错误：请输入 y 或 n"
