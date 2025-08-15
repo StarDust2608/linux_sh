@@ -82,7 +82,14 @@ while true; do
 done
 
 # ===== IPv6 转发选择 =====
-read -p "是否开启 IPv6 转发并添加 IPv6 规则? (y/n): " enable_ipv6
+while true; do
+    read -p "是否开启 IPv6 转发并添加 IPv6 规则? (y/n): " enable_ipv6
+    if [[ "$enable_ipv6" == "y" || "$enable_ipv6" == "n" ]]; then
+        break
+    else
+        echo "错误：请输入 y 或 n"
+    fi
+done
 
 # ===== 清理旧规则 =====
 iptables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port} 2>/dev/null
