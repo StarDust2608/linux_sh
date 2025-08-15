@@ -1,45 +1,47 @@
 #!/bin/bash
-echo "--- hysteria 端口重定向脚本 ---"
+echo "--- hysteria 端口重定向脚本（Debian 系专用） ---"
 
-# ===== 检查是否为 root =====
+# ===== 系统检查 =====
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    case "$ID" in
+        debian|ubuntu|linuxmint|raspbian)
+            echo "检测到系统为 $NAME，继续执行..."
+            ;;
+        *)
+            echo "本脚本仅支持 Debian 系系统（Debian/Ubuntu/Mint/Raspbian）"
+            exit 1
+            ;;
+    esac
+else
+    echo "无法检测系统类型，本脚本仅支持 Debian 系系统"
+    exit 1
+fi
+
+# ===== 检查 root 权限 =====
 if [[ $EUID -ne 0 ]]; then
     echo "请使用 root 权限运行此脚本"
     exit 1
 fi
 
-# ===== 检查并安装依赖 =====
+# ===== 安装依赖 =====
 install_pkg() {
-    if command -v apt >/dev/null 2>&1; then
-        apt update -y && apt install -y "$@"
-    elif command -v yum >/dev/null 2>&1; then
-        yum install -y "$@"
-    else
-        echo "未检测到 apt 或 yum，请手动安装: $*"
-        exit 1
-    fi
+    apt update -y
+    apt install -y "$@"
 }
 
-if ! command -v systemctl >/dev/null 2>&1; then
-    echo "未检测到 systemctl，正在安装 systemd..."
-    install_pkg systemd
-fi
-
-if ! command -v iptables >/dev/null 2>&1; then
-    echo "未检测到 iptables，正在安装 iptables..."
-    install_pkg iptables
-fi
-
-if ! command -v ip6tables >/dev/null 2>&1; then
-    echo "未检测到 ip6tables，正在安装 iptables..."
-    install_pkg iptables
-fi
+for cmd in systemctl iptables ip6tables; do
+    if ! command -v $cmd >/dev/null 2>&1; then
+        echo "未检测到 $cmd，正在安装..."
+        install_pkg "$cmd"
+    fi
+done
 
 # ===== 自动获取物理网卡 =====
 get_iface() {
     mapfile -t ifaces < <(ip -o link show | awk -F': ' '{print $2}' | grep -vE '^(lo|docker|veth|br-|tun|tap)')
     if (( ${#ifaces[@]} == 0 )); then
-        echo "未检测到物理网卡，请手动输入："
-        read -p "网卡名称: " iface
+        read -p "未检测到物理网卡，请手动输入网卡名称: " iface
     elif (( ${#ifaces[@]} == 1 )); then
         iface="${ifaces[0]}"
         echo "检测到物理网卡: $iface"
@@ -53,7 +55,7 @@ get_iface() {
 }
 get_iface
 
-# ===== 循环获取合法端口 =====
+# ===== 循环输入端口 =====
 while true; do
     read -p "起始端口: " start_port
     if [[ "$start_port" =~ ^[0-9]+$ ]] && (( start_port >= 1 && start_port <= 65535 )); then
@@ -99,11 +101,9 @@ ip6tables -t nat -D PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_po
 iptables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 
 if [[ "$enable_ipv6" == "y" ]]; then
-    # 开启 IPv6 转发
     sed -i '/^net.ipv6.conf.all.forwarding/d' /etc/sysctl.conf
     echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf
     sysctl -p >/dev/null
-    # 添加 IPv6 NAT 规则
     ip6tables -t nat -A PREROUTING -i "$iface" -p udp --dport ${start_port}:${end_port} -j REDIRECT --to-ports ${local_port}
 fi
 
@@ -148,15 +148,9 @@ systemctl daemon-reload
 systemctl enable hysteria_port
 systemctl restart hysteria_port
 
-# ===== 保存 iptables 规则（持久化） =====
-if command -v apt >/dev/null 2>&1; then
-    install_pkg iptables-persistent
-    netfilter-persistent save
-elif command -v yum >/dev/null 2>&1; then
-    install_pkg iptables-services
-    service iptables save
-    service ip6tables save 2>/dev/null
-fi
+# ===== 保存 iptables 规则 =====
+install_pkg iptables-persistent
+netfilter-persistent save
 
 echo "脚本运行成功，端口 ${start_port}-${end_port} 已重定向到 ${local_port} (网卡: $iface)"
 if [[ "$enable_ipv6" == "y" ]]; then
