@@ -86,7 +86,7 @@ done
 # ===== IPv6 转发选择 =====
 while true; do
     read -p "是否开启 IPv6 转发并添加 IPv6 规则? (y/n): " enable_ipv6
-    if [[ "$enable_ipv6" == "y","Y" || "$enable_ipv6" == "n","N" ]]; then
+    if [[ "$enable_ipv6" == "y" || "$enable_ipv6" == "n" ]]; then
         break
     else
         echo "错误：请输入 y 或 n"
