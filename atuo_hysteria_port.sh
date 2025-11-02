@@ -30,7 +30,7 @@ install_pkg() {
     sudo apt install -y "$@"
 }
 
-for cmd in systemctl iptables ip6tables; do
+for cmd in sudo systemctl iptables ip6tables; do
     if ! command -v $cmd >/dev/null 2>&1; then
         echo "未检测到 $cmd，正在安装..."
         install_pkg "$cmd"
